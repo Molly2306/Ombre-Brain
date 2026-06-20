@@ -783,10 +783,13 @@ async def hold(
     importance: int = 5,
     pinned: bool = False,
     feel: bool = False,
-    source_bucket: str = "",    valence: float = -1,
+    source_bucket: str = "",
+    valence: float = -1,
     arousal: float = -1,
+    replace: bool = False,
+    target_bucket_id: str = "",
 ) -> str:
-    """存储单条记忆,自动打标+合并。tags逗号分隔,importance 1-10。pinned=True创建永久钉选桶。feel=True存储你的第一人称感受(不参与普通浮现)。source_bucket=被消化的记忆桶ID(feel模式下,标记源记忆为已消化)。"""
+    """存储单条记忆,自动打标+合并。tags逗号分隔,importance 1-10。pinned=True创建永久钉选桶。feel=True存储你的第一人称感受(不参与普通浮现)。source_bucket=被消化的记忆桶ID(feel模式下,标记源记忆为已消化)。replace=True+target_bucket_id=替换已有桶内容(不创建新桶)。"""
     await decay_engine.ensure_started()
 
     # --- Input validation / 输入校验 ---
@@ -795,6 +798,32 @@ async def hold(
 
     importance = max(1, min(10, importance))
     extra_tags = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # --- Replace mode: 替换已有桶内容，不创建新桶 ---
+    if replace and target_bucket_id:
+        target_bucket_id = target_bucket_id.strip()
+        existing = await bucket_mgr.get(target_bucket_id)
+        if not existing:
+            return f"错误：target_bucket_id {target_bucket_id} 不存在"
+        updates = {"content": content}
+        if extra_tags:
+            updates["tags"] = extra_tags
+        if 1 <= importance <= 10:
+            updates["importance"] = 10 if pinned else importance
+        if pinned or existing.get("pinned"):
+            updates["pinned"] = True
+            updates["importance"] = 10
+        ok = await bucket_mgr.update(target_bucket_id, **updates)
+        if not ok:
+            return f"错误：更新 {target_bucket_id} 失败"
+        await bucket_mgr.touch(target_bucket_id)
+        # 重新生成 embedding
+        try:
+            await embedding_engine.delete_embedding(target_bucket_id)
+            await embedding_engine.generate_and_store(target_bucket_id, content)
+        except Exception:
+            pass
+        return f"♻️替换→{target_bucket_id}"
 
     # --- Feel mode: store as feel type, minimal metadata ---
     # --- Feel 模式：存为 feel 类型，最少元数据 ---
