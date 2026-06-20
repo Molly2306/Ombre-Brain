@@ -883,7 +883,8 @@ async def hold(
     final_valence = valence if 0 <= valence <= 1 else auto_valence
     final_arousal = arousal if 0 <= arousal <= 1 else auto_arousal
 
-    all_tags = list(dict.fromkeys(auto_tags + extra_tags))
+    # 关闭主题自动标签：仅保留用户显式传入的 tags，不混入 auto_tags
+    all_tags = list(dict.fromkeys(extra_tags)) if extra_tags else []
 
     # --- Pinned buckets bypass merge and are created directly in permanent dir ---
     # --- 钉选桶跳过合并，直接新建到 permanent 目录 ---
@@ -949,7 +950,7 @@ async def grow(content: str) -> str:
             }
         result_name, is_merged = await _merge_or_create(
             content=content.strip(),
-            tags=analysis.get("tags", []),
+            tags=[],  # 关闭自动标签
             importance=analysis.get("importance", 5) if isinstance(analysis.get("importance"), int) else 5,
             domain=analysis.get("domain", ["未分类"]),
             valence=analysis.get("valence", 0.5),
@@ -979,7 +980,7 @@ async def grow(content: str) -> str:
         try:
             result_name, is_merged = await _merge_or_create(
                 content=item["content"],
-                tags=item.get("tags", []),
+                tags=[],  # 关闭自动标签
                 importance=item.get("importance", 5),
                 domain=item.get("domain", ["未分类"]),
                 valence=item.get("valence", 0.5),
