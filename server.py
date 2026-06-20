@@ -802,9 +802,12 @@ async def hold(
     # --- Replace mode: 替换已有桶内容，不创建新桶 ---
     if replace and target_bucket_id:
         target_bucket_id = target_bucket_id.strip()
+        logger.info(f"[hold-replace] 收到替换请求 target={target_bucket_id} content_len={len(content)} pinned={pinned}")
         existing = await bucket_mgr.get(target_bucket_id)
         if not existing:
+            logger.warning(f"[hold-replace] target_bucket_id {target_bucket_id} 不存在")
             return f"错误：target_bucket_id {target_bucket_id} 不存在"
+        logger.info(f"[hold-replace] 找到旧桶 name={existing.get('metadata',{}).get('name','')} old_content_len={len(existing.get('content',''))}")
         updates = {"content": content}
         if extra_tags:
             updates["tags"] = extra_tags
@@ -814,6 +817,7 @@ async def hold(
             updates["pinned"] = True
             updates["importance"] = 10
         ok = await bucket_mgr.update(target_bucket_id, **updates)
+        logger.info(f"[hold-replace] bucket_mgr.update → {ok}")
         if not ok:
             return f"错误：更新 {target_bucket_id} 失败"
         await bucket_mgr.touch(target_bucket_id)
@@ -823,6 +827,7 @@ async def hold(
             await embedding_engine.generate_and_store(target_bucket_id, content)
         except Exception:
             pass
+        logger.info(f"[hold-replace] 替换成功 → {target_bucket_id}")
         return f"♻️替换→{target_bucket_id}"
 
     # --- Feel mode: store as feel type, minimal metadata ---
