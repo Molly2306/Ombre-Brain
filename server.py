@@ -840,7 +840,7 @@ async def hold(
             content=content,
             tags=[],
             importance=5,
-            domain=[],
+            domain=["Feel"],
             valence=feel_valence,
             arousal=feel_arousal,
             name=None,
@@ -873,7 +873,7 @@ async def hold(
         }
 
     # 关闭主题自动分类：domain 统一用状态分类（钉选/Feel/未分类），不自动提取主题领域
-    domain = ["未分类"]
+    domain = ["未解决"]
     auto_valence = analysis["valence"]
     auto_arousal = analysis["arousal"]
     auto_tags = analysis["tags"]
@@ -953,7 +953,7 @@ async def grow(content: str) -> str:
             content=content.strip(),
             tags=[],
             importance=analysis.get("importance", 5) if isinstance(analysis.get("importance"), int) else 5,
-            domain=["未分类"],
+            domain=["未解决"],
             valence=analysis.get("valence", 0.5),
             arousal=analysis.get("arousal", 0.3),
             name=analysis.get("suggested_name", ""),
@@ -983,7 +983,7 @@ async def grow(content: str) -> str:
                 content=item["content"],
                 tags=[],
                 importance=item.get("importance", 5),
-                domain=["未分类"],
+                domain=["未解决"],
                 valence=item.get("valence", 0.5),
                 arousal=item.get("arousal", 0.3),
                 name=item.get("name", ""),
@@ -1955,13 +1955,17 @@ if __name__ == "__main__":
                 _path = os.path.join(_root, _f)
                 try:
                     _post = _fm.load(_path)
-                    # 按目录决定新 domain：permanent→钉选, feel→[], 其余→未分类
-                    if "permanent" in _root:
+                    # 按 frontmatter 字段判断真实状态
+                    if _post.get("pinned"):
                         _new_domain = ["钉选"]
-                    elif "feel" in _root:
-                        _new_domain = []
+                    elif _post.get("bucket_type") == "feel" or "feel" in _root:
+                        _new_domain = ["Feel"]
+                    elif _post.get("resolved"):
+                        _new_domain = ["归档"]
+                    elif _post.get("digested"):
+                        _new_domain = ["已消化"]
                     else:
-                        _new_domain = ["未分类"]
+                        _new_domain = ["未解决"]
                     _old = _post.get("domain", [])
                     if _old != _new_domain:
                         _post["domain"] = _new_domain
