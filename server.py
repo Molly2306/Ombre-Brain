@@ -872,7 +872,8 @@ async def hold(
             "tags": [], "suggested_name": "",
         }
 
-    domain = analysis["domain"]
+    # 关闭主题自动分类：domain 统一用状态分类（钉选/Feel/未分类），不自动提取主题领域
+    domain = ["未分类"]
     auto_valence = analysis["valence"]
     auto_arousal = analysis["arousal"]
     auto_tags = analysis["tags"]
@@ -893,7 +894,7 @@ async def hold(
             content=content,
             tags=all_tags,
             importance=10,
-            domain=domain,
+            domain=["钉选"],
             valence=final_valence,
             arousal=final_arousal,
             name=suggested_name or None,
@@ -950,15 +951,15 @@ async def grow(content: str) -> str:
             }
         result_name, is_merged = await _merge_or_create(
             content=content.strip(),
-            tags=[],  # 关闭自动标签
+            tags=[],
             importance=analysis.get("importance", 5) if isinstance(analysis.get("importance"), int) else 5,
-            domain=analysis.get("domain", ["未分类"]),
+            domain=["未分类"],
             valence=analysis.get("valence", 0.5),
             arousal=analysis.get("arousal", 0.3),
             name=analysis.get("suggested_name", ""),
         )
         action = "合并" if is_merged else "新建"
-        return f"{action} → {result_name} | {','.join(analysis.get('domain', []))} V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}"
+        return f"{action} → {result_name} | V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}"
 
     # --- Step 1: let API split and organize / 让 API 拆分整理 ---
     try:
@@ -980,9 +981,9 @@ async def grow(content: str) -> str:
         try:
             result_name, is_merged = await _merge_or_create(
                 content=item["content"],
-                tags=[],  # 关闭自动标签
+                tags=[],
                 importance=item.get("importance", 5),
-                domain=item.get("domain", ["未分类"]),
+                domain=["未分类"],
                 valence=item.get("valence", 0.5),
                 arousal=item.get("arousal", 0.3),
                 name=item.get("name", ""),
@@ -1942,10 +1943,10 @@ async def api_system_status(request):
 
 # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
-    # 一次性清空所有已有 tags（设 CLEAR_TAGS_ONCE=1 后部署，跑完删掉该环境变量）
-    if os.environ.get("CLEAR_TAGS_ONCE") == "1":
+    # 一次性重置所有已有 domain 为状态分类（设 RESET_DOMAINS_ONCE=1 后部署，跑完删掉）
+    if os.environ.get("RESET_DOMAINS_ONCE") == "1":
         import frontmatter as _fm
-        cleared = 0
+        changed = 0
         total = 0
         for _root, _, _files in os.walk(bucket_mgr.base_dir):
             for _f in _files:
@@ -1954,16 +1955,24 @@ if __name__ == "__main__":
                 _path = os.path.join(_root, _f)
                 try:
                     _post = _fm.load(_path)
-                    if "tags" in _post and _post.get("tags"):
-                        _post["tags"] = []
+                    # 按目录决定新 domain：permanent→钉选, feel→[], 其余→未分类
+                    if "permanent" in _root:
+                        _new_domain = ["钉选"]
+                    elif "feel" in _root:
+                        _new_domain = []
+                    else:
+                        _new_domain = ["未分类"]
+                    _old = _post.get("domain", [])
+                    if _old != _new_domain:
+                        _post["domain"] = _new_domain
                         with open(_path, "w", encoding="utf-8") as _fh:
                             _fh.write(_fm.dumps(_post))
-                        cleared += 1
-                        logger.info(f"[clear-tags] ✓ {_f}")
+                        changed += 1
+                        logger.info(f"[reset-domains] ✓ {_f}: {_old} → {_new_domain}")
                     total += 1
                 except Exception as _e:
-                    logger.warning(f"[clear-tags] ✗ {_f}: {_e}")
-        logger.info(f"[clear-tags] DONE {total} buckets, {cleared} cleared / 完成 {total} 桶, {cleared} 清空")
+                    logger.warning(f"[reset-domains] ✗ {_f}: {_e}")
+        logger.info(f"[reset-domains] DONE {total} buckets, {changed} changed / {total} 桶, {changed} 更新")
         # 不退出，继续正常启动服务
 
     transport = config.get("transport", "stdio")
