@@ -1970,6 +1970,43 @@ if __name__ == "__main__":
         logger.info(f"[reset-domains] DONE {total} buckets, {changed} changed / {total} 桶, {changed} 更新")
         # 不退出，继续正常启动服务
 
+    # 一次性修复旧桶时间戳：UTC → Beijing +8h（设 FIX_TZ_ONCE=1 后部署，跑完删掉）
+    if os.environ.get("FIX_TZ_ONCE") == "1":
+        import frontmatter as _fm
+        from datetime import datetime as _dt, timedelta as _td
+        fixed = 0
+        total = 0
+        for _root, _, _files in os.walk(bucket_mgr.base_dir):
+            for _f in _files:
+                if not _f.endswith(".md"):
+                    continue
+                _path = os.path.join(_root, _f)
+                try:
+                    _post = _fm.load(_path)
+                    _dirty = False
+                    for _key in ("created", "last_active"):
+                        _val = _post.get(_key, "")
+                        if not _val:
+                            continue
+                        try:
+                            # 尝试解析 ISO 时间，+8h
+                            _dt_val = _dt.fromisoformat(str(_val).replace("Z", "+00:00"))
+                            _dt_val += _td(hours=8)
+                            _post[_key] = _dt_val.isoformat(timespec="seconds")
+                            _dirty = True
+                        except Exception:
+                            pass
+                    if _dirty:
+                        with open(_path, "w", encoding="utf-8") as _fh:
+                            _fh.write(_fm.dumps(_post))
+                        fixed += 1
+                        logger.info(f"[fix-tz] ✓ {_f}")
+                    total += 1
+                except Exception as _e:
+                    logger.warning(f"[fix-tz] ✗ {_f}: {_e}")
+        logger.info(f"[fix-tz] DONE {total} buckets, {fixed} fixed / {total} 桶, {fixed} 修复")
+        # 不退出，继续正常启动服务
+
     transport = config.get("transport", "stdio")
     logger.info(f"Ombre Brain starting | transport: {transport}")
 
