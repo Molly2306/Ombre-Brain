@@ -40,6 +40,7 @@ class EmbeddingEngine:
         )
         self.model = embed_cfg.get("model", "gemini-embedding-001")
         self.enabled = bool(self.api_key) and embed_cfg.get("enabled", True)
+        self._unsupported = False  # 置 true 后静默跳过，不再刷 WARNING
 
         # --- SQLite path: buckets_dir/embeddings.db ---
         db_path = os.path.join(config["buckets_dir"], "embeddings.db")
@@ -50,7 +51,7 @@ class EmbeddingEngine:
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                timeout=30.0,
+                timeout=15.0,
             )
         else:
             self.client = None
@@ -78,7 +79,7 @@ class EmbeddingEngine:
         为内容生成 embedding 并存入 SQLite。
         Returns True on success, False on failure.
         """
-        if not self.enabled or not content or not content.strip():
+        if not self.enabled or self._unsupported or not content or not content.strip():
             return False
 
         try:
@@ -93,7 +94,8 @@ class EmbeddingEngine:
 
     async def _generate_embedding(self, text: str) -> list[float]:
         """Call API to generate embedding vector."""
-        # Truncate to avoid token limits
+        if self._unsupported:
+            return []
         truncated = text[:2000]
         try:
             response = await self.client.embeddings.create(
@@ -104,7 +106,13 @@ class EmbeddingEngine:
                 return response.data[0].embedding
             return []
         except Exception as e:
-            logger.warning(f"Embedding API call failed: {e}")
+            err = str(e)
+            # 404/405 = provider doesn't support embeddings → disable silently
+            if '404' in err or '405' in err or 'Not Found' in err:
+                self._unsupported = True
+                logger.info(f"Embedding API not supported by this provider, disabled. / embedding 不可用，已静默禁用")
+            else:
+                logger.warning(f"Embedding API call failed: {e}")
             return []
 
     def _store_embedding(self, bucket_id: str, embedding: list[float]):
