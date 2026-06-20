@@ -24,6 +24,10 @@ COPY config.example.yaml ./config.yaml
 # 持久化挂载点：记忆数据
 VOLUME ["/app/buckets"]
 
+# Timezone / 时区
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Default to streamable-http for container (remote access)
 # 容器场景默认用 streamable-http
 ENV OMBRE_TRANSPORT=streamable-http
