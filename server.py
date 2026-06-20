@@ -1992,33 +1992,34 @@ if __name__ == "__main__":
     # 批量补 tags：对已有无 tags 的记忆桶重新脱水分析生成关键词标签（设 TAG_BACKFILL_ONCE=1，跑完删）
     if os.environ.get("TAG_BACKFILL_ONCE") == "1":
         import frontmatter as _fm
-        tagged = 0
-        total = 0
-        for _root, _, _files in os.walk(bucket_mgr.base_dir):
-            for _f in _files:
-                if not _f.endswith(".md"):
-                    continue
-                _path = os.path.join(_root, _f)
-                try:
-                    _post = _fm.load(_path)
-                    # 只补没有 tags 的
-                    if not _post.get("tags"):
-                        _content = _post.content
-                        try:
-                            _analysis = await dehydrator.analyze(_content[:2000])
-                            _tags = _analysis.get("tags", [])
-                            if _tags:
-                                _post["tags"] = _tags
-                                with open(_path, "w", encoding="utf-8") as _fh:
-                                    _fh.write(_fm.dumps(_post))
-                                tagged += 1
-                                logger.info(f"[tag-backfill] ✓ {_f}: {_tags}")
-                        except Exception as _e2:
-                            logger.warning(f"[tag-backfill] analyze fail {_f}: {_e2}")
-                    total += 1
-                except Exception as _e:
-                    logger.warning(f"[tag-backfill] ✗ {_f}: {_e}")
-        logger.info(f"[tag-backfill] DONE {total} buckets, {tagged} tagged / {total} 桶, {tagged} 补标签")
+        async def _backfill():
+            _tagged = 0
+            _total = 0
+            for _root, _, _files in os.walk(bucket_mgr.base_dir):
+                for _f in _files:
+                    if not _f.endswith(".md"):
+                        continue
+                    _path = os.path.join(_root, _f)
+                    try:
+                        _post = _fm.load(_path)
+                        if not _post.get("tags"):
+                            _content = _post.content
+                            try:
+                                _analysis = await dehydrator.analyze(_content[:2000])
+                                _tags = _analysis.get("tags", [])
+                                if _tags:
+                                    _post["tags"] = _tags
+                                    with open(_path, "w", encoding="utf-8") as _fh:
+                                        _fh.write(_fm.dumps(_post))
+                                    _tagged += 1
+                                    logger.info(f"[tag-backfill] ✓ {_f}: {_tags}")
+                            except Exception as _e2:
+                                logger.warning(f"[tag-backfill] analyze fail {_f}: {_e2}")
+                        _total += 1
+                    except Exception as _e:
+                        logger.warning(f"[tag-backfill] ✗ {_f}: {_e}")
+            logger.info(f"[tag-backfill] DONE {_total} buckets, {_tagged} tagged / {_total} 桶, {_tagged} 补标签")
+        asyncio.run(_backfill())
         # 不退出，继续正常启动服务
 
     transport = config.get("transport", "stdio")
