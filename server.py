@@ -1942,6 +1942,30 @@ async def api_system_status(request):
 
 # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
+    # 一次性清空所有已有 tags（设 CLEAR_TAGS_ONCE=1 后部署，跑完删掉该环境变量）
+    if os.environ.get("CLEAR_TAGS_ONCE") == "1":
+        import frontmatter as _fm
+        cleared = 0
+        total = 0
+        for _root, _, _files in os.walk(bucket_mgr.base_dir):
+            for _f in _files:
+                if not _f.endswith(".md"):
+                    continue
+                _path = os.path.join(_root, _f)
+                try:
+                    _post = _fm.load(_path)
+                    if "tags" in _post and _post.get("tags"):
+                        _post["tags"] = []
+                        with open(_path, "w", encoding="utf-8") as _fh:
+                            _fh.write(_fm.dumps(_post))
+                        cleared += 1
+                        logger.info(f"[clear-tags] ✓ {_f}")
+                    total += 1
+                except Exception as _e:
+                    logger.warning(f"[clear-tags] ✗ {_f}: {_e}")
+        logger.info(f"[clear-tags] DONE {total} buckets, {cleared} cleared / 完成 {total} 桶, {cleared} 清空")
+        # 不退出，继续正常启动服务
+
     transport = config.get("transport", "stdio")
     logger.info(f"Ombre Brain starting | transport: {transport}")
 
