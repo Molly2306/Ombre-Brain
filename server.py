@@ -884,8 +884,8 @@ async def hold(
     final_valence = valence if 0 <= valence <= 1 else auto_valence
     final_arousal = arousal if 0 <= arousal <= 1 else auto_arousal
 
-    # 关闭主题自动标签：仅保留用户显式传入的 tags，不混入 auto_tags
-    all_tags = list(dict.fromkeys(extra_tags)) if extra_tags else []
+    # 合并自动关键词标签 + 用户显式标签（domain 已清空，tags 仅用于关键词检索）
+    all_tags = list(dict.fromkeys(auto_tags + extra_tags))
 
     # --- Pinned buckets bypass merge and are created directly in permanent dir ---
     # --- 钉选桶跳过合并，直接新建到 permanent 目录 ---
@@ -951,7 +951,7 @@ async def grow(content: str) -> str:
             }
         result_name, is_merged = await _merge_or_create(
             content=content.strip(),
-            tags=[],
+            tags=analysis.get("tags", []),  # 恢复关键词标签
             importance=analysis.get("importance", 5) if isinstance(analysis.get("importance"), int) else 5,
             domain=[],
             valence=analysis.get("valence", 0.5),
@@ -981,7 +981,7 @@ async def grow(content: str) -> str:
         try:
             result_name, is_merged = await _merge_or_create(
                 content=item["content"],
-                tags=[],
+                tags=item.get("tags", []),  # 恢复关键词标签
                 importance=item.get("importance", 5),
                 domain=[],
                 valence=item.get("valence", 0.5),
@@ -1987,6 +1987,38 @@ if __name__ == "__main__":
                 except Exception as _e:
                     logger.warning(f"[fix-tz] ✗ {_f}: {_e}")
         logger.info(f"[fix-tz] DONE {total} buckets, timestamps:{tz_fixed} fixed, domains:{dm_cleared} cleared / {total}桶 时区{tz_fixed} 域{dm_cleared}")
+        # 不退出，继续正常启动服务
+
+    # 批量补 tags：对已有无 tags 的记忆桶重新脱水分析生成关键词标签（设 TAG_BACKFILL_ONCE=1，跑完删）
+    if os.environ.get("TAG_BACKFILL_ONCE") == "1":
+        import frontmatter as _fm
+        tagged = 0
+        total = 0
+        for _root, _, _files in os.walk(bucket_mgr.base_dir):
+            for _f in _files:
+                if not _f.endswith(".md"):
+                    continue
+                _path = os.path.join(_root, _f)
+                try:
+                    _post = _fm.load(_path)
+                    # 只补没有 tags 的
+                    if not _post.get("tags"):
+                        _content = _post.content
+                        try:
+                            _analysis = await dehydrator.analyze(_content[:2000])
+                            _tags = _analysis.get("tags", [])
+                            if _tags:
+                                _post["tags"] = _tags
+                                with open(_path, "w", encoding="utf-8") as _fh:
+                                    _fh.write(_fm.dumps(_post))
+                                tagged += 1
+                                logger.info(f"[tag-backfill] ✓ {_f}: {_tags}")
+                        except Exception as _e2:
+                            logger.warning(f"[tag-backfill] analyze fail {_f}: {_e2}")
+                    total += 1
+                except Exception as _e:
+                    logger.warning(f"[tag-backfill] ✗ {_f}: {_e}")
+        logger.info(f"[tag-backfill] DONE {total} buckets, {tagged} tagged / {total} 桶, {tagged} 补标签")
         # 不退出，继续正常启动服务
 
     transport = config.get("transport", "stdio")
