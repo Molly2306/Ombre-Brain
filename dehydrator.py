@@ -184,6 +184,10 @@ class Dehydrator:
         else:
             self.client = None
 
+        # --- Token usage tracking / Token 用量追踪 ---
+        self.last_usage = None  # {prompt_tokens, completion_tokens, total_tokens} from most recent API call
+        self.total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
         # --- SQLite dehydration cache ---
         # --- SQLite 脱水缓存：content hash → summary ---
         db_path = os.path.join(config["buckets_dir"], "dehydration_cache.db")
@@ -204,6 +208,13 @@ class Dehydrator:
         """)
         conn.commit()
         conn.close()
+
+    def get_and_reset_usage(self) -> dict:
+        """Get accumulated usage since last reset, then reset counters."""
+        u = dict(self.total_usage)
+        self.total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        self.last_usage = None
+        return u
 
     def _get_cached_summary(self, content: str) -> str | None:
         """Look up cached dehydration result by content hash."""
@@ -321,6 +332,14 @@ class Dehydrator:
             max_tokens=self.max_tokens,
             temperature=self.temperature,
         )
+        if response.usage:
+            self.last_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            for k in self.total_usage:
+                self.total_usage[k] += self.last_usage[k]
         if not response.choices:
             return ""
         return response.choices[0].message.content or ""
@@ -344,6 +363,14 @@ class Dehydrator:
             max_tokens=self.max_tokens,
             temperature=self.temperature,
         )
+        if response.usage:
+            self.last_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            for k in self.total_usage:
+                self.total_usage[k] += self.last_usage[k]
         if not response.choices:
             return ""
         return response.choices[0].message.content or ""

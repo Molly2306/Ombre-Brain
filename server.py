@@ -64,9 +64,9 @@ setup_logging(config.get("log_level", "INFO"))
 logger = logging.getLogger("ombre_brain")
 
 # --- Runtime env vars (port + webhook) / 运行时环境变量 ---
-# OMBRE_PORT: HTTP/SSE 监听端口，默认 8000
+# OMBRE_PORT: HTTP/SSE 监听端口，默认 8000（兼容 Render 的 PORT 环境变量）
 try:
-    OMBRE_PORT = int(os.environ.get("OMBRE_PORT", "8000") or "8000")
+    OMBRE_PORT = int(os.environ.get("OMBRE_PORT") or os.environ.get("PORT", "8000") or "8000")
 except ValueError:
     logger.warning("OMBRE_PORT 不是合法整数，回退到 8000")
     OMBRE_PORT = 8000
@@ -505,6 +505,23 @@ async def breath(
     importance_min: int = -1,
 ) -> str:
     """检索/浮现记忆。不传query或传空=自动浮现,有query=关键词检索。max_tokens控制返回总token上限(默认10000)。domain逗号分隔,valence/arousal 0~1(-1忽略)。max_results控制返回数量上限(默认20,最大50)。importance_min>=1时按重要度批量拉取(不走语义搜索,按importance降序返回最多20条)。"""
+    dehydrator.get_and_reset_usage()  # 重置本轮计数器
+    result = await _breath_impl(query, max_tokens, domain, valence, arousal, max_results, importance_min)
+    usage = dehydrator.get_and_reset_usage()
+    if usage.get("total_tokens", 0) > 0:
+        result += f"\n\n<!--omb_usage:{_json_lib.dumps(usage, ensure_ascii=False)}-->"
+    return result
+
+async def _breath_impl(
+    query: str = "",
+    max_tokens: int = 10000,
+    domain: str = "",
+    valence: float = -1,
+    arousal: float = -1,
+    max_results: int = 20,
+    importance_min: int = -1,
+) -> str:
+    """检索/浮现记忆（内部实现）。"""
     await decay_engine.ensure_started()
     max_results = min(max_results, 50)
     max_tokens = min(max_tokens, 20000)
@@ -1177,6 +1194,14 @@ async def pulse(include_archive: bool = False) -> str:
 @mcp.tool()
 async def dream() -> str:
     """做梦——读取最近新增的记忆桶,供你自省。读完后可以trace(resolved=1)放下,或hold(feel=True)写感受。"""
+    dehydrator.get_and_reset_usage()  # 重置本轮计数器（dream当前无API调用，未来可能有）
+    result = await _dream_impl()
+    usage = dehydrator.get_and_reset_usage()
+    if usage.get("total_tokens", 0) > 0:
+        result += f"\n\n<!--omb_usage:{_json_lib.dumps(usage, ensure_ascii=False)}-->"
+    return result
+
+async def _dream_impl() -> str:
     await decay_engine.ensure_started()
 
     try:
