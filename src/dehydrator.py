@@ -48,7 +48,7 @@ logger = logging.getLogger("ombre_brain.dehydrator")
 
 # --- LLM 默认参数 ---
 _DEFAULT_MODEL = "gemini-2.0-flash"
-_DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
+_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _DEFAULT_MAX_TOKENS = 1024
 _DEFAULT_TEMPERATURE = 0.1
 _API_TIMEOUT_SECONDS = 60.0
@@ -256,12 +256,14 @@ class Dehydrator:
         # --- SQLite 脱水缓存：content hash → summary ---
         db_path = os.path.join(config["buckets_dir"], "dehydration_cache.db")
         self.cache_db_path = db_path
-        self._init_cache_db()
+        self._cache_conn: sqlite3.Connection = self._init_cache_db()
 
-    def _init_cache_db(self):
-        """Create dehydration cache table if not exists."""
+    def _init_cache_db(self) -> sqlite3.Connection:
+        """Open (or create) the dehydration cache DB; return a persistent connection."""
         os.makedirs(os.path.dirname(self.cache_db_path), exist_ok=True)
-        conn = sqlite3.connect(self.cache_db_path)
+        # check_same_thread=False is safe here: asyncio runs on one thread and all
+        # cache calls are synchronous helper methods called from that same thread.
+        conn = sqlite3.connect(self.cache_db_path, check_same_thread=False)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS dehydration_cache (
                 content_hash TEXT PRIMARY KEY,
@@ -271,37 +273,33 @@ class Dehydrator:
             )
         """)
         conn.commit()
-        conn.close()
+        return conn
 
     def _get_cached_summary(self, content: str) -> str | None:
         """Look up cached dehydration result by content hash."""
         content_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = sqlite3.connect(self.cache_db_path)
-        row = conn.execute(
+        row = self._cache_conn.execute(
             "SELECT summary FROM dehydration_cache WHERE content_hash = ?",
             (content_hash,)
         ).fetchone()
-        conn.close()
         return row[0] if row else None
 
     def _set_cached_summary(self, content: str, summary: str):
         """Store dehydration result in cache."""
         content_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = sqlite3.connect(self.cache_db_path)
-        conn.execute(
+        self._cache_conn.execute(
             "INSERT OR REPLACE INTO dehydration_cache (content_hash, summary, model) VALUES (?, ?, ?)",
             (content_hash, summary, self.model)
         )
-        conn.commit()
-        conn.close()
+        self._cache_conn.commit()
 
     def invalidate_cache(self, content: str):
         """Remove cached summary for specific content (call when bucket content changes)."""
         content_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = sqlite3.connect(self.cache_db_path)
-        conn.execute("DELETE FROM dehydration_cache WHERE content_hash = ?", (content_hash,))
-        conn.commit()
-        conn.close()
+        self._cache_conn.execute(
+            "DELETE FROM dehydration_cache WHERE content_hash = ?", (content_hash,)
+        )
+        self._cache_conn.commit()
 
     # ---------------------------------------------------------
     # 内部 helpers / Internal helpers
@@ -345,6 +343,8 @@ class Dehydrator:
             return await self._chat_gemini(system, user, max_tokens=max_tokens, temperature=temperature)
         if self.api_format == "anthropic":
             return await self._chat_anthropic(system, user, max_tokens=max_tokens, temperature=temperature)
+        if self.api_format not in ("openai_compat", "gemini", "anthropic"):
+            logger.warning(f"Unknown api_format '{self.api_format}', falling back to openai_compat")
         # openai_compat (default)
         if self.client is None:
             return ""

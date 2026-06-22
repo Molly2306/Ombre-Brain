@@ -159,6 +159,9 @@ async def _fire_webhook(event: str, payload: dict) -> None:
     """
     if OMBRE_HOOK_SKIP or not OMBRE_HOOK_URL:
         return
+    if not OMBRE_HOOK_URL.startswith(("http://", "https://")):
+        logger.warning(f"OMBRE_HOOK_URL rejected: only http/https allowed (got {OMBRE_HOOK_URL[:40]!r})")
+        return
     try:
         body = {
             "event": event,
@@ -3467,6 +3470,11 @@ async def api_env_config_set(request: Request) -> Response:
 
         value = val.strip()
 
+        # OMBRE_HOOK_URL 只允许 http/https（防止意外配成 file:// 等非 HTTP scheme）
+        if var == "OMBRE_HOOK_URL" and value and not value.startswith(("http://", "https://")):
+            errors.append(f"{var}: 只允许 http:// 或 https:// 开头的 URL，跳过")
+            continue
+
         # 1. 更新进程内 config dict（影响当次请求之后的业务逻辑）
         meta = _ENV_CONFIG_FIELDS[var]
         if meta["in_memory"]:
@@ -3496,12 +3504,14 @@ async def api_env_config_set(request: Request) -> Response:
             continue
 
         # 4. Webhook 变量特殊处理：更新模块级全局
+        # _fire_webhook 读的是模块级 OMBRE_HOOK_URL / OMBRE_HOOK_SKIP 常量（不是每次读 os.environ），
+        # 必须在这里同步更新全局，否则 dashboard 改完要重启才生效。
         if var == "OMBRE_HOOK_URL":
-            # server.py 里 _HOOK_URL 可能是模块级常量；直接用 os.environ 就够，
-            # 因为 _fire_webhook 每次都读 os.environ.get("OMBRE_HOOK_URL")
-            pass
+            global OMBRE_HOOK_URL
+            OMBRE_HOOK_URL = value
         if var == "OMBRE_HOOK_SKIP":
-            pass
+            global OMBRE_HOOK_SKIP
+            OMBRE_HOOK_SKIP = value.lower() in ("1", "true", "yes", "on")
 
         # 5. Compress 配置变更 → 同步到 dehydrator 实例，重建 client
         if var in ("OMBRE_COMPRESS_API_KEY", "OMBRE_COMPRESS_BASE_URL", "OMBRE_COMPRESS_MODEL", "OMBRE_COMPRESS_FORMAT"):

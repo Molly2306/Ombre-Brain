@@ -149,6 +149,7 @@ def load_config(config_path: Optional[str] = None) -> dict:
     _apply_env_override(config, "OMBRE_EMBED_API_KEY", "embedding", "api_key")
     _apply_env_override(config, "OMBRE_EMBED_BASE_URL", "embedding", "base_url")
     _apply_env_override(config, "OMBRE_EMBED_MODEL", "embedding", "model")
+    _apply_env_override(config, "OMBRE_EMBED_FORMAT", "embedding", "api_format")
 
     # 顶层运行时
     _apply_env_override(config, "OMBRE_TRANSPORT", "transport")
