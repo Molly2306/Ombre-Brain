@@ -9,6 +9,7 @@ __pycache__/
 config.yaml.dir/
 .env
 .venv/
+.venv*/
 venv/
 .claude/
 .vscode/
