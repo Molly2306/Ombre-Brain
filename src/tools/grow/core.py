@@ -68,7 +68,7 @@ async def grow_core(content: str) -> str:
                 content=item["content"],
                 tags=item.get("tags") or [],
                 importance=item.get("importance") or 5,
-                domain=item.get("domain") or ["未分类"],
+                domain=[],  # cleo 定制：关闭主题自动分类，理由同 hold/core.py
                 valence=item.get("valence") or 0.5,
                 arousal=item.get("arousal") or 0.3,
                 name=item.get("name", ""),

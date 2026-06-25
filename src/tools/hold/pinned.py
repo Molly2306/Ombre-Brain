@@ -43,9 +43,8 @@ async def store_pinned(
             "tags": [], "suggested_name": "",
         }
 
-    domain = analysis.get("domain") or ["未分类"]
-    if not isinstance(domain, list):
-        domain = ["未分类"]
+    # cleo 定制：关闭主题自动分类，理由同 hold/core.py。
+    domain = []
     _v = analysis.get("valence", 0.5)
     _a = analysis.get("arousal", 0.3)
     final_valence = valence if 0 <= valence <= 1 else (float(_v) if _v is not None else 0.5)
@@ -87,7 +86,7 @@ async def store_pinned(
             "向量化失败，该核心准则暂不参与语义检索，仅支持关键词匹配。"
             "请检查 OMBRE_EMBED_API_KEY。"
         )
-    result = f"📌钉选→{bucket_id} {','.join(str(d) for d in domain if d is not None)}"
+    result = f"📌钉选→{bucket_id}"
     if embed_warn:
         result += f"\n⚠️ {embed_warn}"
     return result

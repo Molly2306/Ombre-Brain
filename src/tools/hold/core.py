@@ -45,9 +45,9 @@ async def store_core(
             f"API key 未配置或调用失败，打标无法完成，桶未创建。请检查 OMBRE_COMPRESS_API_KEY。（错误：{e}）"
         ) from e
 
-    domain = analysis.get("domain") or ["未分类"]
-    if not isinstance(domain, list):
-        domain = ["未分类"]
+    # cleo 定制：关闭主题自动分类。domain 清空，靠目录区分状态
+    # （permanent/dynamic/feel/archive），不让 LLM 把活的话切成死标签。
+    domain = []
     _v = analysis.get("valence", 0.5)
     _a = analysis.get("arousal", 0.3)
     final_valence = valence if 0 <= valence <= 1 else (float(_v) if _v is not None else 0.5)
@@ -73,7 +73,7 @@ async def store_core(
     asyncio.create_task(check_plan_resolution(content, source_bucket_id=result_name))
     if not is_merged:
         asyncio.create_task(check_duplicate_for(result_name, content))
-    result = f"{action}{result_name} {','.join(str(d) for d in domain if d is not None)}"
+    result = f"{action}{result_name}"
     if embed_warn:
         result += f"\n⚠️ {embed_warn}"
     return result
