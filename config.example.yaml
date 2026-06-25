@@ -1,3 +1,5 @@
+mcp_require_auth: false
+
 # ============================================================
 # Ombre Brain Configuration / 配置文件
 # Copy this file to config.yaml and modify as needed
@@ -26,7 +28,7 @@ log_level: "INFO"
 #        OAuth blocks your MCP tool calls. Env var OMBRE_MCP_REQUIRE_AUTH=false also works.
 # ⚠️ When disabled, do not expose the service directly to the public internet without
 #    another auth layer at the reverse proxy — otherwise anyone can read/write memories.
-mcp_require_auth: true
+# mcp_require_auth: true
 
 # --- Bucket storage path / 记忆桶存储路径 ---
 # Point this to your Obsidian vault subdirectory, or any local folder
