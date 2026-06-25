@@ -20,9 +20,5 @@ ENV OMBRE_BUCKETS_DIR=/app/buckets
 VOLUME ["/app/buckets"]
 EXPOSE 8000
 
-# 启动新版入口：一号门与二号门双进程并开通电
-CMD python src/server.py & \
-    python src/server_extra.py & \
-    echo "[OB] 核心主副双连接器已在后台并发拉起，正在监听服务..." && \
-    wait -n && \
-    exit 1
+# 启动新版入口
+CMD ["python", "src/server.py"]
