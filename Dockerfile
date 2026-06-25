@@ -3,10 +3,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 拷贝新版多层架构
+# 拷贝新版多层架构（src 内部已经包含了 VERSION 文件）
 COPY src/ ./src/
 COPY frontend/ ./frontend/
-COPY VERSION ./VERSION
 
 # 写入配置文件（Zeabur 部署时作为默认配置）
 COPY config.example.yaml ./config.yaml
