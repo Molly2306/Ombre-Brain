@@ -97,12 +97,12 @@ async def rename_human_in_buckets(old: str, new: str) -> dict:
 
 def register(mcp) -> None:
 
-    @mcp.custom_route("/debug/count-todos-temp", methods=["GET"])
-    async def debug_count_todos_temp(request: Request) -> Response:
+    @mcp.custom_route("/debug/recent-files-temp", methods=["GET"])
+    async def debug_recent_files_temp(request: Request) -> Response:
         from starlette.responses import JSONResponse
         import glob
         import os
-        import re
+        import time
         err = sh._require_auth(request)
         if err: return err
         try:
@@ -110,32 +110,30 @@ def register(mcp) -> None:
             if not buckets_dir:
                 return JSONResponse({"error": "buckets_dir not configured"})
             
-            permanent_dir = os.path.join(buckets_dir, "permanent")
-            dynamic_dir = os.path.join(buckets_dir, "dynamic")
+            files = glob.glob(os.path.join(buckets_dir, "**", "*.md"), recursive=True)
             
-            files = glob.glob(os.path.join(permanent_dir, "**", "*.md"), recursive=True)
-            files += glob.glob(os.path.join(dynamic_dir, "**", "*.md"), recursive=True)
+            now = time.time()
+            ten_mins_ago = now - 600
             
-            dates = []
+            recent_files = []
             for f in files:
                 try:
-                    with open(f, "r", encoding="utf-8") as file_obj:
-                        content = file_obj.read()
-                        if "待办清单（当前无待办事项）" in content:
-                            match = re.search(r"created:\s*([\d\-T:\.Z]+)", content)
-                            if match:
-                                dates.append(match.group(1))
+                    mtime = os.path.getmtime(f)
+                    if mtime >= ten_mins_ago:
+                        recent_files.append({
+                            "path": f,
+                            "mtime_readable": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                        })
                 except Exception:
                     pass
             
-            dates.sort()
+            recent_files.sort(key=lambda x: x["mtime_readable"], reverse=True)
+            
             return JSONResponse({
                 "buckets_dir_resolved": buckets_dir,
-                "permanent_dir_scanned": permanent_dir,
-                "dynamic_dir_scanned": dynamic_dir,
-                "count": len(dates),
-                "earliest": dates[0] if dates else None,
-                "latest": dates[-1] if dates else None
+                "total_md_files": len(files),
+                "recent_files_count": len(recent_files),
+                "recent_files": recent_files
             })
         except Exception as e:
             return JSONResponse({"error": str(e)}, status_code=500)
