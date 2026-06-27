@@ -111,7 +111,10 @@ def register(mcp) -> None:
                 return JSONResponse({"error": "buckets_dir not configured"})
             
             permanent_dir = os.path.join(buckets_dir, "permanent")
+            dynamic_dir = os.path.join(buckets_dir, "dynamic")
+            
             files = glob.glob(os.path.join(permanent_dir, "**", "*.md"), recursive=True)
+            files += glob.glob(os.path.join(dynamic_dir, "**", "*.md"), recursive=True)
             
             dates = []
             for f in files:
@@ -127,6 +130,9 @@ def register(mcp) -> None:
             
             dates.sort()
             return JSONResponse({
+                "buckets_dir_resolved": buckets_dir,
+                "permanent_dir_scanned": permanent_dir,
+                "dynamic_dir_scanned": dynamic_dir,
                 "count": len(dates),
                 "earliest": dates[0] if dates else None,
                 "latest": dates[-1] if dates else None
