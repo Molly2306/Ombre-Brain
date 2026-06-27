@@ -68,6 +68,7 @@ from tools import anchor as _t_anchor
 from tools import plan as _t_plan
 from tools import dream as _t_dream
 from tools import i as _t_i
+from tools.chat_history import core as _t_chat_history
 from tools._common import (
     check_content_size as _check_content_size,
     check_pinned_quota as _check_pinned_quota,
@@ -764,6 +765,16 @@ async def I(
         _t_i.dispatch(content=content, aspect=aspect, read=read, limit=limit),
         op="I",
         args={"content_len": len(content or ""), "aspect": aspect, "read": read, "limit": limit},
+    )
+
+
+@mcp_extra.tool()
+async def chat_history(session_id: str, limit: Optional[int] = 20) -> str:
+    """只读工具，让我能读取当前用户会话的原始聊天记录。通过 session_id 过滤，返回指定 limit 的历史消息（按时间正序）。"""
+    return await _with_notice(
+        _t_chat_history.chat_history_core(session_id=session_id, limit=limit),
+        op="chat_history",
+        args={"session_id": session_id, "limit": limit},
     )
 
 
