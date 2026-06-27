@@ -97,6 +97,43 @@ async def rename_human_in_buckets(old: str, new: str) -> dict:
 
 def register(mcp) -> None:
 
+    @mcp.custom_route("/debug/count-todos-temp", methods=["GET"])
+    async def debug_count_todos_temp(request: Request) -> Response:
+        from starlette.responses import JSONResponse
+        import glob
+        import os
+        import re
+        err = sh._require_auth(request)
+        if err: return err
+        try:
+            buckets_dir = sh.config.get("buckets_dir", "")
+            if not buckets_dir:
+                return JSONResponse({"error": "buckets_dir not configured"})
+            
+            permanent_dir = os.path.join(buckets_dir, "permanent")
+            files = glob.glob(os.path.join(permanent_dir, "**", "*.md"), recursive=True)
+            
+            dates = []
+            for f in files:
+                try:
+                    with open(f, "r", encoding="utf-8") as file_obj:
+                        content = file_obj.read()
+                        if "待办清单（当前无待办事项）" in content:
+                            match = re.search(r"created:\s*([\d\-T:\.Z]+)", content)
+                            if match:
+                                dates.append(match.group(1))
+                except Exception:
+                    pass
+            
+            dates.sort()
+            return JSONResponse({
+                "count": len(dates),
+                "earliest": dates[0] if dates else None,
+                "latest": dates[-1] if dates else None
+            })
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @mcp.custom_route("/api/buckets", methods=["GET"])
     async def api_buckets(request: Request) -> Response:
         """List all buckets with metadata (no content for efficiency)."""
