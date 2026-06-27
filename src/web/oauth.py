@@ -147,18 +147,6 @@ def register(mcp) -> None:
     """注册 /.well-known/* 与 /oauth/* 路由，并在装配时载入持久化 token。"""
     _load_mcp_tokens()   # 启动时恢复持久化 token，Docker 重启不再强制重新 OAuth
 
-    @mcp.custom_route("/debug/verify-token-temp", methods=["GET"])
-    async def _debug_verify_token_temp(request: Request) -> Response:
-        from starlette.responses import JSONResponse
-        auth = request.headers.get("authorization", "")
-        if not auth.startswith("Bearer "):
-            return JSONResponse({"valid": False, "reason": "no bearer header"}, status_code=400)
-        token = auth[7:]
-        # _is_valid_mcp_token is in the outer scope
-        is_valid = _is_valid_mcp_token(token)
-        return JSONResponse({"valid": is_valid})
-
-
     @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
     @mcp.custom_route("/.well-known/oauth-protected-resource/{resource_path:path}", methods=["GET"])
     async def oauth_protected_resource(request: Request) -> Response:
