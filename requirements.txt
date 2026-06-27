@@ -28,5 +28,5 @@ httpx>=0.27.0
 numpy>=1.24.0
 scikit-learn>=1.2.0
 
-# Supabase ¿Í»§¶Ë (chat_history ÓÃ)
+# Supabase å®¢æˆ·ç«¯ (chat_history ç”¨)
 supabase>=2.0.0
