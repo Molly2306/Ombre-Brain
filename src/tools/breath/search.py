@@ -76,7 +76,10 @@ async def surface_search(
                     and bucket["metadata"].get("type") not in ("feel", "plan", "letter", "archived")
                     and _bucket_has_tags(bucket["metadata"], tag_filter)
                 ):
-                    bucket["score"] = round(sim_score * 100, 2)
+                    score = sim_score * 100
+                    if bucket["metadata"].get("resolved", False):
+                        score *= 0.3
+                    bucket["score"] = round(score, 2)
                     bucket["vector_match"] = True
                     matches.append(bucket)
                     matched_ids.add(bucket_id)
