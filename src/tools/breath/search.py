@@ -24,9 +24,41 @@ embedding_engine 向量近邻，结果合并去重，逐条 dehydrate 后塞 tok
 """
 
 import random
+import jieba
+import logging
 
 from .. import _runtime as rt
 from utils import strip_wikilinks, count_tokens_approx
+
+# ============================================================
+# 调参面板 / Tunable constants
+# ------------------------------------------------------------
+# 多关键词命中排序的加权系数与停用词表
+# ============================================================
+KEYWORD_HIT_BONUS_COEFF = 0.15
+
+_STOPWORDS = {
+    "的", "了", "在", "是", "我", "你", "他", "她", "它", "们",
+    "这", "那", "有", "个", "和", "也", "都", "要", "就", "到",
+    "说", "去", "想", "做", "看", "写", "听", "见", "把", "被",
+    "让", "给", "往", "过", "得", "着", "里", "外", "上", "下",
+    "中", "不", "很", "真", "来", "回"
+}
+
+
+def _extract_keywords_simple(query: str) -> list[str]:
+    if not query:
+        return []
+    jieba.setLogLevel(logging.WARNING)
+    parts = jieba.cut(query)
+    keywords = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if part.lower() not in _STOPWORDS and len(part) >= 2:
+            keywords.append(part)
+    return keywords
 
 
 def _bucket_has_tags(meta: dict, tag_filter: list) -> bool:
@@ -85,6 +117,17 @@ async def surface_search(
                     matched_ids.add(bucket_id)
     except Exception as e:
         rt.logger.warning(f"Vector search failed, using keyword only / 向量搜索失败: {e}")
+
+    # --- 统一多关键词命中加权与重排序 ---
+    keywords = _extract_keywords_simple(query)
+    if keywords:
+        for bucket in matches:
+            content = bucket.get("content", "") or ""
+            hit_count = sum(1 for kw in keywords if kw in content)
+            orig_score = bucket.get("score", 0.0)
+            bucket["score"] = orig_score * (1 + KEYWORD_HIT_BONUS_COEFF * hit_count)
+            
+    matches.sort(key=lambda x: x.get("score", 0.0), reverse=True)
 
     results = []
     token_used = 0
