@@ -415,43 +415,6 @@
     box-shadow: 0 0 0 3px var(--accent-glow), inset 2px 2px 4px var(--shadow-dark-subtle);
   }
 
-  /* 日期「按钮」：一个拟态化凸起的 <button>，点它由 JS 唤起原生日期选择器。
-     里面藏一个 <input type="date"> 只用来存值（id=letter-date，sendLetter 读它），
-     不负责点击，也不显示任何原生控件——彻底告别小图标重叠。
-     按钮上的文字由 #letter-date-label 显示「请选择日期」或已选日期。 */
-  .config-row button.date-pill {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    box-sizing: border-box;
-    height: 39px;
-    padding: 0 14px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 13px;
-    text-align: left;
-    color: var(--text);
-    background: var(--bg);
-    box-shadow: 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
-    transition: all 0.2s ease;
-  }
-  .config-row button.date-pill:hover {
-    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
-  }
-  .config-row button.date-pill:active {
-    box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light);
-  }
-  .config-row button.date-pill:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--accent-glow), 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
-  }
-  #letter-date-label {
-    pointer-events: none;
-    color: var(--text-dim);
-  }
-
   .btn-primary {
     padding: 12px 28px;
     background: var(--accent);
@@ -1787,7 +1750,6 @@
   <div class="tab" data-tab="import"><span>导入</span><span class="tab-en">Import</span></div>
   <div class="tab" data-tab="logs"><span>日志</span><span class="tab-en">Logs</span></div>
   <div class="tab" data-tab="settings"><span>设置</span><span class="tab-en">Settings</span></div>
-  <div class="tab" data-tab="v3-debug"><span>2.4.0 Debug</span><span class="tab-en">Replay</span></div>
   <div class="tab-spacer"></div>
   <div class="tab" data-tab="about"><span>关于</span><span class="tab-en">About</span></div>
 </div>
@@ -2040,27 +2002,6 @@
 
 <!-- Settings Tab View -->
 <!-- ====== iter 1.7 §G: Plan tab — kanban-style list with status + change history ====== -->
-<div class="content" id="v3-debug-view" style="display:none">
-  <div style="display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:16px;align-items:start;">
-    <div class="config-section" style="margin:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
-        <h3 style="margin:0;">2.4.0 Debug</h3>
-        <button onclick="loadV3Debug()" title="Refresh" style="padding:7px 10px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="refresh-cw"></i></button>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <input id="v3-debug-module" type="text" placeholder="module" style="min-width:0;flex:1;font-size:12px;padding:8px 10px;">
-        <input id="v3-debug-operation" type="text" placeholder="operation" style="min-width:0;flex:1;font-size:12px;padding:8px 10px;">
-      </div>
-      <div id="v3-debug-meta" style="font-size:12px;color:var(--text-dim);min-height:18px;margin-bottom:8px;"></div>
-      <div id="v3-debug-list" style="display:flex;flex-direction:column;gap:8px;max-height:58vh;overflow:auto;"></div>
-    </div>
-    <div class="config-section" style="margin:0;min-height:340px;">
-      <h3 style="margin-bottom:12px;">Replay</h3>
-      <div id="v3-debug-detail" style="font-size:12px;line-height:1.65;color:var(--text);"></div>
-    </div>
-  </div>
-</div>
-
 <div class="content" id="plan-view" style="display:none">
   <div style="max-width:920px;margin:0 auto;">
     <div class="config-section">
@@ -2097,12 +2038,8 @@
           <option value="user">user</option>
           <option value="ai">AI</option>
         </select>
-        <input type="text" id="letter-username" placeholder="署名 name（可选）" />
-        <button type="button" class="date-pill" style="flex:0 0 180px;" onclick="openDatePicker()">
-          <span id="letter-date-label">请选择日期</span>
-          <input type="date" id="letter-date" onchange="syncDateLabel()" oninput="syncDateLabel()"
-                 style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:14px;bottom:0;" />
-        </button>
+        <input type="text" id="letter-username" placeholder="user_name（可选）" />
+        <input type="date" id="letter-date" style="flex:0 0 180px;" />
       </div>
       <div class="config-row">
         <label>标题</label>
@@ -3796,7 +3733,6 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('plan-view').style.display = target === 'plan' ? '' : 'none';
     document.getElementById('import-view').style.display = target === 'import' ? '' : 'none';
     document.getElementById('logs-view').style.display = target === 'logs' ? '' : 'none';
-    document.getElementById('v3-debug-view').style.display = target === 'v3-debug' ? '' : 'none';
     document.getElementById('settings-view').style.display = target === 'settings' ? '' : 'none';
     document.getElementById('letters-view').style.display = target === 'letters' ? '' : 'none';
     document.getElementById('anchors-view').style.display = target === 'anchors' ? '' : 'none';
@@ -3807,7 +3743,6 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (target === 'plan') loadPlans();
     if (target === 'import') { pollImportStatus(); loadImportResults(); }
     if (target === 'logs') { loadLogs(); loadOBErrors(); }
-    if (target === 'v3-debug') loadV3Debug();
     if (target === 'settings') {
       // 任务D：合并 config + settings 后，切换到「设置」时一次性加载所有面板数据
       loadSettingsStatus();
@@ -5882,11 +5817,22 @@ async function _runBackfillSilent() {
   });
 }
 
+// AI 一方的显示名，由 /api/config 注入（取自环境变量 AI_NAME，回退 "AI"）。
+// 面向用户的文案统一引用它，不再硬编码具体模型名。
+var AI_NAME = 'AI';
+
+function _applyAiName() {
+  // 写信身份下拉里 AI 选项的显示标签跟随 AI_NAME。
+  var opt = document.querySelector('#letter-author option[value="ai"]');
+  if (opt) opt.textContent = AI_NAME;
+}
+
 async function loadConfig() {
   try {
     var res = await authFetch('/api/config');
     if (!res) return;
     var cfg = await res.json();
+    if (cfg.ai_name) { AI_NAME = cfg.ai_name; _applyAiName(); }
     document.getElementById('cfg-dehy-model').value = cfg.dehydration.model || '';
     document.getElementById('cfg-dehy-url').value = cfg.dehydration.base_url || '';
     var fmtEl = document.getElementById('cfg-dehy-format');
@@ -6733,86 +6679,6 @@ async function batchReview(idsJson, action) {
 // ========================================
 // iter 1.6 §3 — heartbeat indicator + log viewer
 // ========================================
-// v3-debug-panel
-let _v3DebugRecords = [];
-
-async function loadV3Debug() {
-  const list = document.getElementById('v3-debug-list');
-  const meta = document.getElementById('v3-debug-meta');
-  const detail = document.getElementById('v3-debug-detail');
-  if (!list || !meta || !detail) return;
-  list.innerHTML = '<div class="loading" style="padding:20px;">loading...</div>';
-  meta.textContent = '';
-  const moduleValue = (document.getElementById('v3-debug-module')?.value || '').trim();
-  const operationValue = (document.getElementById('v3-debug-operation')?.value || '').trim();
-  const params = new URLSearchParams({ limit: '30' });
-  if (moduleValue) params.set('module', moduleValue);
-  if (operationValue) params.set('operation', operationValue);
-  try {
-    const r = await authFetch('/api/v3/debug/decisions?' + params.toString());
-    if (!r) return;
-    const data = await readJsonSafe(r);
-    _v3DebugRecords = data.records || [];
-    meta.textContent = (_v3DebugRecords.length || 0) + ' records';
-    if (!_v3DebugRecords.length) {
-      list.innerHTML = '<div class="loading" style="padding:20px;">empty</div>';
-      detail.innerHTML = '';
-      return;
-    }
-    list.innerHTML = _v3DebugRecords.map(renderV3DebugDecision).join('');
-    await replayV3Decision(_v3DebugRecords[0].id);
-  } catch (e) {
-    list.innerHTML = '<div style="color:var(--negative);font-size:12px;">' + esc(e.message) + '</div>';
-  }
-}
-
-function renderV3DebugDecision(record, index) {
-  const summary = record.summary || {};
-  const ok = summary.consistency_ok && summary.outcome_ok;
-  const allowed = summary.policy_allowed;
-  const badgeColor = ok && allowed ? 'var(--positive)' : (allowed ? 'var(--warning)' : 'var(--negative)');
-  const surfaces = (summary.projection_surfaces || []).join(', ') || '-';
-  return '<button onclick="replayV3Decision(\'' + esc(record.id) + '\')" ' +
-    'style="text-align:left;background:var(--surface-solid);border:1px solid var(--border);border-radius:4px;padding:10px 12px;cursor:pointer;color:var(--text);">' +
-    '<div style="display:flex;align-items:center;gap:8px;font-size:12px;">' +
-      '<span style="width:7px;height:7px;border-radius:50%;background:' + badgeColor + ';display:inline-block;flex-shrink:0;"></span>' +
-      '<span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(record.module || '-') + '.' + esc(record.operation || '-') + '</span>' +
-      '<span style="margin-left:auto;color:var(--text-light);font-size:11px;">#' + (index + 1) + '</span>' +
-    '</div>' +
-    '<div style="font-size:11px;color:var(--text-dim);margin-top:6px;word-break:break-all;">' + esc(record.command_id || '') + '</div>' +
-    '<div style="font-size:11px;color:var(--text-light);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(surfaces) + '</div>' +
-  '</button>';
-}
-
-async function replayV3Decision(identifier) {
-  const detail = document.getElementById('v3-debug-detail');
-  if (!detail) return;
-  detail.innerHTML = '<div class="loading" style="padding:20px;">replay...</div>';
-  try {
-    const r = await authFetch('/api/v3/debug/replay/' + encodeURIComponent(identifier));
-    if (!r) return;
-    const data = await readJsonSafe(r);
-    const replay = data.replay || {};
-    const explanation = replay.explanation || {};
-    const issues = replay.issues || [];
-    detail.innerHTML =
-      '<div style="display:grid;grid-template-columns:130px 1fr;gap:8px 12px;font-size:12px;">' +
-        '<span style="color:var(--text-light);">decision</span><span style="word-break:break-all;">' + esc((data.record || {}).id || identifier) + '</span>' +
-        '<span style="color:var(--text-light);">module</span><span>' + esc(explanation.module || '-') + '.' + esc(explanation.operation || '-') + '</span>' +
-        '<span style="color:var(--text-light);">policy</span><span>' + String(explanation.policy_allowed) + '</span>' +
-        '<span style="color:var(--text-light);">consistency</span><span>' + String(explanation.consistency_ok) + '</span>' +
-        '<span style="color:var(--text-light);">replay</span><span>' + String(replay.ok) + '</span>' +
-        '<span style="color:var(--text-light);">surfaces</span><span style="word-break:break-all;">' + esc((explanation.projection_surfaces || []).join(', ') || '-') + '</span>' +
-      '</div>' +
-      '<pre style="margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:12px;white-space:pre-wrap;word-break:break-word;max-height:42vh;overflow:auto;font-size:11px;">' +
-      esc(JSON.stringify({ issues: issues, explanation: explanation }, null, 2)) +
-      '</pre>';
-  } catch (e) {
-    detail.innerHTML = '<div style="color:var(--negative);font-size:12px;">' + esc(e.message) + '</div>';
-  }
-}
-// v3-debug-panel-end
-
 async function pollHeartbeat() {
   const dot = document.getElementById('heartbeat-dot');
   const txt = document.getElementById('heartbeat-text');
@@ -6845,18 +6711,13 @@ async function loadLogs() {
     const r = await fetch(BASE + '/api/logs?level=' + encodeURIComponent(level) + '&limit=' + limit);
     const d = await r.json();
     if (d.error) { out.textContent = '加载失败: ' + d.error; return; }
-    // 界面只显示文件名（如 server.log），完整路径放 title 悬停提示里——
-    // 既干净，也不把本机用户名/目录结构暴露在界面上。
-    const fullPath = d.log_file || '';
-    const fileName = fullPath.split(/[\\/]/).pop() || fullPath;
-    meta.title = fullPath;
     if (!d.lines || !d.lines.length) {
       out.textContent = d.note || '(无符合条件的日志)';
-      meta.textContent = fileName;
+      meta.textContent = d.log_file || '';
       return;
     }
     out.textContent = d.lines.join('\n');
-    meta.textContent = fileName + ' · ' + d.count + ' 行';
+    meta.textContent = (d.log_file || '') + ' · ' + d.count + ' 行';
     out.scrollTop = out.scrollHeight;
   } catch (e) { out.textContent = '加载失败: ' + e.message; }
 }
@@ -7519,26 +7380,6 @@ function _renderLetter(l) {
   </article>`;
 }
 
-// 日期「按钮」：点按钮 → 主动唤起浏览器原生日期选择器。
-// showPicker() 是专门干这事的 API（Chrome/Edge/Safari 支持）；
-// 不支持时退回 focus+click，再不行就让隐藏 input 临时可见聚焦。
-function openDatePicker() {
-  const inp = document.getElementById('letter-date');
-  if (!inp) return;
-  try {
-    if (typeof inp.showPicker === 'function') { inp.showPicker(); return; }
-  } catch (e) { /* 某些浏览器在非用户手势下会抛错，下面兜底 */ }
-  inp.focus();
-  inp.click();
-}
-
-// 选完日期后，把按钮上的文字更新成所选日期（没选则回到提示）。
-function syncDateLabel() {
-  const inp = document.getElementById('letter-date');
-  const lbl = document.getElementById('letter-date-label');
-  if (inp && lbl) lbl.textContent = inp.value || '请选择日期';
-}
-
 async function sendLetter() {
   const status = document.getElementById('letter-status');
   status.style.color = 'var(--text-dim)';
@@ -7994,7 +7835,7 @@ async function executePurge() {
     closePurgeModal();
     exitPurgeMode();
     await loadBuckets();
-    var msg = '已永久删除 ' + data.deleted + ' 条记忆桶。AI 将在下次工具调用时收到通知。';
+    var msg = '已永久删除 ' + data.deleted + ' 条记忆桶。' + AI_NAME + ' 将在下次工具调用时收到通知。';
     if (data.failed && data.failed.length) msg += '\n未能删除：' + data.failed.join(', ');
     alert(msg);
   } catch (e) {
