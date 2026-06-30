@@ -62,4 +62,7 @@ if [ ! -f "$CONFIG" ]; then
 fi
 
 echo "[entrypoint] config ready at '$CONFIG'."
+echo "[entrypoint] Running backfill_embeddings.py to auto-generate missing vectors..."
+python tools/backfill_embeddings.py --batch-size 20 || true
 exec python src/server.py
+

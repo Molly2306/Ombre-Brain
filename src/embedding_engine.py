@@ -158,11 +158,14 @@ class APIEmbeddingEngine(BaseEmbeddingEngine):
     async def generate_async(self, text: str) -> list[float]:
         if not text or not text.strip():
             return []
+        # 避免截断恰好切到 unicode surrogate pair (如 emoji) 导致非法代理字符抛 UnicodeEncodeError
+        safe_text = "".join(c for c in text[:_MAX_INPUT_CHARS] if not (0xD800 <= ord(c) <= 0xDFFF))
         try:
             response = await self._client.embeddings.create(
                 model=self.model,
-                input=text[:_MAX_INPUT_CHARS],
+                input=safe_text,
             )
+
             if response.data and len(response.data) > 0:
                 vec = response.data[0].embedding
                 # 第一次拿到向量时确认真实维度
@@ -230,7 +233,11 @@ class GeminiNativeEmbeddingEngine(BaseEmbeddingEngine):
         import httpx
         model_id = self.model.removeprefix("models/").strip()
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
-        payload = {"content": {"parts": [{"text": text[:_MAX_INPUT_CHARS]}]}}
+        # 避免截断恰好切到 unicode surrogate pair (如 emoji) 导致非法代理字符抛 UnicodeEncodeError
+        safe_text = "".join(c for c in text[:_MAX_INPUT_CHARS] if not (0xD800 <= ord(c) <= 0xDFFF))
+        payload = {"content": {"parts": [{"text": safe_text}]}}
+
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as c:
                 r = await c.post(url, params={"key": self.api_key}, json=payload)
