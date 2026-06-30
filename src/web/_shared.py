@@ -365,17 +365,9 @@ def _set_session_cookie(resp: Response, token: str, request: Request) -> None:
 def _require_auth(request: Request) -> Response | None:
     """Return JSONResponse(401) if not authenticated, else None."""
     from starlette.responses import JSONResponse
-    import os
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer ") and len(auth_header.split()) > 1:
-        req_token = auth_header.split()[1]
-        env_token = os.environ.get("OMBRE_SERVICE_TOKEN", "")
-        if env_token and req_token == env_token:
-            return None
     if not _is_authenticated(request):
         return JSONResponse(
             {"error": "Unauthorized", "setup_needed": _is_setup_needed()},
             status_code=401,
         )
     return None
-
