@@ -97,6 +97,21 @@ async def rename_human_in_buckets(old: str, new: str) -> dict:
 
 def register(mcp) -> None:
 
+    @mcp.custom_route("/debug/backfill-result-temp", methods=["GET"])
+    async def debug_backfill_result(request: Request) -> Response:
+        """[TEMP] Read backfill log file directly from storage."""
+        import os
+        from starlette.responses import PlainTextResponse
+        log_path = os.path.join(sh.config["buckets_dir"], "backfill_result.log")
+        if not os.path.exists(log_path):
+            return PlainTextResponse("Log file not found yet.", status_code=404)
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return PlainTextResponse(content)
+        except Exception as e:
+            return PlainTextResponse(f"Error reading log: {e}", status_code=500)
+
     @mcp.custom_route("/api/buckets", methods=["GET"])
     async def api_buckets(request: Request) -> Response:
         """List all buckets with metadata (no content for efficiency)."""

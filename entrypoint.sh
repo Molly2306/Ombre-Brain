@@ -62,6 +62,9 @@ if [ ! -f "$CONFIG" ]; then
 fi
 
 echo "[entrypoint] config ready at '$CONFIG'."
+echo "[entrypoint] Running backfill_embeddings.py..."
+python tools/backfill_embeddings.py --batch-size 20 > "$(dirname "$CONFIG")/backfill_result.log" 2>&1 || true
 exec python src/server.py
+
 
 
