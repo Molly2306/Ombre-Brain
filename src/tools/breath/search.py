@@ -60,7 +60,6 @@ def _extract_keywords_simple(query: str) -> list[str]:
             keywords.append(part)
     return keywords
 
-
 def _bucket_has_tags(meta: dict, tag_filter: list) -> bool:
     if not tag_filter:
         return True
@@ -128,7 +127,6 @@ async def surface_search(
             bucket["score"] = orig_score * (1 + KEYWORD_HIT_BONUS_COEFF * hit_count)
             
     matches.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-
     results = []
     token_used = 0
     for bucket in matches:
@@ -145,9 +143,7 @@ async def surface_search(
             summary_tokens = count_tokens_approx(summary)
             if token_used + summary_tokens > max_tokens:
                 break
-            # cleo 定制：检索命中不 touch()。breath 是「瞟一眼」，不是「真正用到」；
-            # 如果扫到就续命，翻篇的事会反复重新浮上来，自然淡忘的能力会被破坏。
-            # 只有 hold/trace 等写操作才应该更新 last_active。
+            await rt.bucket_mgr.touch(bucket["id"])
             meta_b = bucket["metadata"]
             if meta_b.get("pinned") or meta_b.get("protected") or meta_b.get("type") == "permanent":
                 summary = f"📌 [核心准则] [bucket_id:{bucket['id']}] {summary}"

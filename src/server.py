@@ -776,8 +776,6 @@ async def chat_history(session_id: str, limit: Optional[int] = 20) -> str:
         op="chat_history",
         args={"session_id": session_id, "limit": limit},
     )
-
-
 @mcp.tool()
 async def dream(window_hours: Optional[int] = 48) -> str:
     """我做一次梦——读取最近 window_hours（默认 48h）内有变动的所有记忆桶,我自己沉进去想一遍。

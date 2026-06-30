@@ -43,7 +43,7 @@ async def grow_shortpath(content: str) -> str:
         content=content.strip(),
         tags=analysis.get("tags", []),
         importance=importance,
-        domain=[],  # cleo 定制：关闭主题自动分类，理由同 hold/core.py
+domain=[],  # cleo 定制：关闭主题自动分类，理由同 hold/core.py
         valence=analysis.get("valence", 0.5),
         arousal=analysis.get("arousal", 0.3),
         name=analysis.get("suggested_name", ""),
@@ -57,6 +57,7 @@ async def grow_shortpath(content: str) -> str:
         asyncio.create_task(check_duplicate_for(result_name, content.strip()))
     result = (
         f"{action} → {result_name} | "
+
         f"V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}"
     )
     if embed_warn:
