@@ -35,11 +35,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files / 复制项目文件
 COPY src/ ./src/
+COPY tools/ ./tools/
 COPY frontend/ ./frontend/
 COPY VERSION ./VERSION
 COPY config.example.yaml ./config.default.yaml
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
+
 
 # Persistent mount point: bucket data
 # 持久化挂载点：记忆数据
