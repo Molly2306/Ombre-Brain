@@ -94,6 +94,17 @@ async def pulse(include_archive: Optional[bool] = False) -> str:
     except Exception as e:
         rt.logger.warning(f"pulse index/storage drift check failed: {e}")
 
+    # --- 向量检索降级计数器（由 breath/search.py 在降级时写入）---
+    fb = getattr(rt, "vector_fallback", None)
+    if fb and fb.get("recent_24h_count", 0) > 0:
+        fallback_n = fb["recent_24h_count"]
+        total_n = fb.get("success_count_24h", 0) + fallback_n
+        success_pct = round((1 - fallback_n / max(total_n, 1)) * 100, 1)
+        status += (
+            f"⚠️ 向量降级：最近 24h 关键词回退 {fallback_n} 次，"
+            f"embedding 成功率 {success_pct}%\n"
+        )
+
     try:
         buckets = await rt.bucket_mgr.list_all(include_archive=include_archive)
     except Exception as e:

@@ -24,6 +24,7 @@ embedding_engine 向量近邻，结果合并去重，逐条 dehydrate 后塞 tok
 """
 
 import random
+import time
 import jieba
 import logging
 
@@ -114,8 +115,28 @@ async def surface_search(
                     bucket["vector_match"] = True
                     matches.append(bucket)
                     matched_ids.add(bucket_id)
+        # --- 向量检索成功：累计 total_attempts（pulse 成功率计算用）---
+        fb = rt.vector_fallback
+        if fb is not None:
+            now_ts = time.time()
+            if now_ts - fb.get("window_start", 0) > 86400:
+                fb["window_start"] = now_ts
+                fb["recent_24h_count"] = 0
+                fb["success_count_24h"] = 0
+            fb["success_count_24h"] = fb.get("success_count_24h", 0) + 1
     except Exception as e:
         rt.logger.warning(f"Vector search failed, using keyword only / 向量搜索失败: {e}")
+        # --- 向量检索降级计数器（pulse 可读）---
+        fb = rt.vector_fallback
+        if fb is not None:
+            now_ts = time.time()
+            # 清理超过 24h 的旧计数（简单窗口：窗口切换时重置）
+            if now_ts - fb.get("window_start", 0) > 86400:
+                fb["window_start"] = now_ts
+                fb["recent_24h_count"] = 0
+                fb["success_count_24h"] = 0
+            fb["recent_24h_count"] = fb.get("recent_24h_count", 0) + 1
+            fb["last_fallback_ts"] = now_ts
 
     # --- 统一多关键词命中加权与重排序 ---
     keywords = _extract_keywords_simple(query)

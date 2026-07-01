@@ -542,6 +542,12 @@ _tools_runtime.init(
     logger=logger,
     fire_webhook=_fire_webhook,
     mark_op=_mark_op,
+    vector_fallback={
+        "window_start": 0.0,
+        "recent_24h_count": 0,
+        "success_count_24h": 0,
+        "last_fallback_ts": 0.0,
+    },
 )
 
 

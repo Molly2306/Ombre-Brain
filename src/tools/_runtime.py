@@ -38,6 +38,7 @@ logger: Any = None
 # --- 共享辅助回调（也由 server.py 注入，避免反向 import）---
 fire_webhook: Optional[Callable[[str, dict], Awaitable[None]]] = None
 mark_op: Optional[Callable[..., None]] = None
+vector_fallback: Any = None
 
 
 def init(**kwargs: Any) -> None:
