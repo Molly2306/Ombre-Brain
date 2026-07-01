@@ -76,7 +76,7 @@ async def dispatch(
 
     # --- Feel 通道优先：即使无 query 也直接拉 feel ---
     if domain.strip().lower() == "feel":
-        return await surface_feels(max_tokens=max_tokens)
+        return await surface_feels(max_tokens=max_tokens, max_results=max_results)
 
     # --- importance_min 模式：跳过语义，按 importance 降序 ---
     if importance_min >= 1:

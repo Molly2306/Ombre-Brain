@@ -24,11 +24,13 @@ from .. import _runtime as rt
 from utils import strip_wikilinks, count_tokens_approx
 
 
-async def surface_feels(max_tokens: int) -> str:
+async def surface_feels(max_tokens: int, max_results: int = 0) -> str:
     try:
         all_buckets = await rt.bucket_mgr.list_all(include_archive=False)
         feels = [b for b in all_buckets if b.get("metadata", {}).get("type") == "feel"]
         feels.sort(key=lambda b: b.get("metadata", {}).get("created", ""), reverse=True)
+        if max_results and max_results > 0:
+            feels = feels[:max_results]
         if not feels:
             return "没有留下过 feel。"
         full_lines: list[str] = []
