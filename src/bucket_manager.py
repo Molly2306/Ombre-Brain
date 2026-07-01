@@ -704,30 +704,59 @@ class BucketManager:
         Soft-delete a memory bucket: move to archive/ and stamp `deleted_at`.
         F-10: 记忆不消失，只是淡去。不做物理删除，将文件移入 archive/
         并在 frontmatter 中写入 deleted_at 时间戳；embedding 仍清理以节省空间。
+
+        iter 2.3.17 原子性修复：先搬文件到 archive/，再往已搬移的文件写入
+        deleted_at。旧顺序（先写 archive 副本再删原文件）在中间步骤失败时
+        会留下「active 目录下没有 deleted_at 的原文件 + archive 下没有副本」
+        或「两边各有一份」的半完成态。新顺序保证：只要 move 成功，文件就
+        已在 archive/；stamp 失败也只是缺时间戳，不会有 deleted_at 出现在
+        active 目录里。
         """
         file_path = self._find_bucket_file(bucket_id)
         if not file_path:
             return False
 
-        # --- 读取文件，写入 deleted_at，移入 archive/ ---
+        # --- Step 1: 读取原文件元数据（仅读，不写回）---
         try:
             post = frontmatter.load(file_path)
-            post["deleted_at"] = now_iso()
-            os.makedirs(self.archive_dir, exist_ok=True)
-            dest = os.path.join(self.archive_dir, os.path.basename(file_path))
-            # 若 archive/ 里已有同名文件（极罕见），追加 bucket_id 后缀避免覆盖
-            if os.path.exists(dest) and dest != file_path:
-                dest = os.path.join(
-                    self.archive_dir,
-                    f"{os.path.splitext(os.path.basename(file_path))[0]}_{bucket_id}.md",
-                )
-            with open(dest, "w", encoding="utf-8") as f:
-                f.write(frontmatter.dumps(post))
-            if dest != file_path:
-                os.remove(file_path)
-        except OSError as e:
-            logger.error(f"Failed to soft-delete bucket / 软删除桶文件失败: {file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to load bucket for delete / 删除时加载桶失败: {file_path}: {e}")
             return False
+
+        # --- Step 2: 确定 archive/ 目标路径 ---
+        os.makedirs(self.archive_dir, exist_ok=True)
+        dest = os.path.join(self.archive_dir, os.path.basename(file_path))
+        if os.path.exists(dest) and os.path.normpath(dest) != os.path.normpath(file_path):
+            dest = os.path.join(
+                self.archive_dir,
+                f"{os.path.splitext(os.path.basename(file_path))[0]}_{bucket_id}.md",
+            )
+
+        # --- Step 3: 先搬文件到 archive/（OS 层面原子 rename），再写 deleted_at ---
+        # 关键顺序：move 在前，stamp 在后。move 失败 → 原文件不动，干净回滚。
+        # move 成功 → 文件已在 archive/，stamp 即使失败也只是缺 deleted_at，
+        # 绝不会在 active 目录里留下带 deleted_at 的幽灵桶。
+        if os.path.normpath(dest) != os.path.normpath(file_path):
+            try:
+                shutil.move(file_path, dest)
+            except OSError as e:
+                logger.error(f"Failed to move bucket to archive / 移动桶到归档失败: {file_path} -> {dest}: {e}")
+                return False
+            file_path = dest  # 后续 stamp 写到已移动后的路径
+
+        # --- Step 4: 在已归档的文件上写 deleted_at ---
+        post["deleted_at"] = now_iso()
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(frontmatter.dumps(post))
+        except OSError as e:
+            # move 成功但 stamp 失败：文件安全落在 archive/，仅缺时间戳。
+            # 不影响 get()/list_all() 的正确性（桶已在 archive 目录里），
+            # 且下次 delete 同 id 会重试 stamp。
+            logger.warning(
+                f"Move succeeded but failed to stamp deleted_at / "
+                f"移动成功但写入删除时间戳失败: {file_path}: {e}"
+            )
 
         # iter 1.6 §4：仍清理 embedding，避免孤儿向量占用空间
         if self.embedding_engine is not None:
@@ -1171,6 +1200,10 @@ class BucketManager:
         """
         Recursively walk directories (including domain subdirs), list all buckets.
         递归遍历目录（含域子目录），列出所有记忆桶。
+
+        iter 2.3.17: 与 get() 对齐 —— 同时过滤 deleted_at，防止 list_all 返回
+        get() 拿不到的桶（幽灵桶）。此前 list_all 不过滤 deleted_at，导致 pulse
+        能看到但 trace/web 看不到的矛盾。
         """
         buckets = []
         dirs = list(self._active_dirs)
@@ -1179,7 +1212,7 @@ class BucketManager:
 
         for _root, _fname, file_path in self._iter_md_files(dirs):
             bucket = self._load_bucket(file_path)
-            if bucket:
+            if bucket and not bucket.get("metadata", {}).get("deleted_at"):
                 buckets.append(bucket)
 
         return buckets
