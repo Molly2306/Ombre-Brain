@@ -69,24 +69,4 @@ async def store_pinned(
         pinned=True,
         why_remembered=why_remembered,
     )
-    # iter 2.1+ 起 create() 内部已调用 _sync_embedding，permanent 桶与普通桶一样
-    # 在落盘后立刻向量化，此处无需重复生成（否则每次钉选都多打一次 embedding API）。
-    # 只探测上次是否成功，失败时把降级提示拼到返回串——核心准则若不可语义检索，
-    # 她/他应当被告知（之前这里静默 except: pass，breath 盲查 permanent 无人知晓）。
-    embed_warn = ""
-    try:
-        if rt.embedding_engine and getattr(rt.embedding_engine, "enabled", False):
-            if await rt.embedding_engine.get_embedding(bucket_id) is None:
-                embed_warn = (
-                    "向量化失败，该核心准则暂不参与语义检索，仅支持关键词匹配。"
-                    "请检查 OMBRE_EMBED_API_KEY。"
-                )
-    except Exception:
-        embed_warn = (
-            "向量化失败，该核心准则暂不参与语义检索，仅支持关键词匹配。"
-            "请检查 OMBRE_EMBED_API_KEY。"
-        )
-    result = f"📌钉选→{bucket_id}"
-    if embed_warn:
-        result += f"\n⚠️ {embed_warn}"
-    return result
+    return f"📌钉选→{bucket_id}"
