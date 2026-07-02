@@ -45,8 +45,3 @@
 
 **教训：不能只看--stat判断"直接搬运"，必须结合pytest交叉验证；纯UI文件（无测试覆盖）需额外人工抽查。**
 
-## 五、待办（下次窗口继续）
-
-- [ ] src/tools/breath/search.py：整合provider_detect相关部分，明确排除embedding强制依赖，
-      保留本地jieba+resolved降权+降级计数器三层逻辑
-- [ ] dashboard.html行尾符CRLF/LF混用问题，找机会单独清理
