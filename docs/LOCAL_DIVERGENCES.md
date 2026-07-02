@@ -24,6 +24,7 @@
 - 向量通道resolved桶降权70%（520cec6，src/tools/breath/search.py）
 - chat_history工具，挂载在/mcp-extra（5281316）
 - 向量检索降级计数器vector_fallback，pulse可见（943f7da）
+- superseded_by 废止标记机制（f4b423a，涉及 [bucket_manager.py](file:///c:/Users/14586/Ombre-Brain/src/bucket_manager.py), [core.py](file:///c:/Users/14586/Ombre-Brain/src/tools/trace/core.py), [search.py](file:///c:/Users/14586/Ombre-Brain/src/tools/breath/search.py), [surface.py](file:///c:/Users/14586/Ombre-Brain/src/tools/breath/surface.py), [importance.py](file:///c:/Users/14586/Ombre-Brain/src/tools/breath/importance.py)）
 
 ## 三、已采纳upstream的功能（merge-upstream-batch1，2026-07-01）
 
