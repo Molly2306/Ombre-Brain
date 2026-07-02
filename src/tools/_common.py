@@ -32,10 +32,51 @@ import asyncio
 import hashlib
 
 from . import _runtime as rt
+import jieba
+import logging
 
 _EMBED_WARN = (
     "向量化失败，该桶不参与语义检索，仅支持关键词匹配。请检查 OMBRE_EMBED_API_KEY。"
 )
+
+_STOPWORDS = {
+    "的", "了", "在", "是", "我", "你", "他", "她", "它", "们",
+    "这", "那", "有", "个", "和", "也", "都", "要", "就", "到",
+    "说", "去", "想", "做", "看", "写", "听", "见", "把", "被",
+    "让", "给", "往", "过", "得", "着", "里", "外", "上", "下",
+    "中", "不", "很", "真", "来", "回"
+}
+
+
+def _extract_keywords_simple(query: str) -> list[str]:
+    if not query:
+        return []
+    jieba.setLogLevel(logging.WARNING)
+    parts = jieba.cut(query)
+    keywords = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if part.lower() not in _STOPWORDS and len(part) >= 2:
+            keywords.append(part)
+    return keywords
+
+
+def _extract_clean_keywords_no_digit(text: str) -> set[str]:
+    raw_words = _extract_keywords_simple(text)
+    clean_words = set()
+    for w in raw_words:
+        if w.isdigit():
+            continue
+        try:
+            float(w)
+            continue
+        except ValueError:
+            pass
+        clean_words.add(w)
+    return clean_words
+
 
 # ============================================================
 # 常量 / Named constants
@@ -386,57 +427,79 @@ async def _merge_or_create_inner(
         rt.logger.warning(f"Search for merge failed, creating new / 合并搜索失败，新建: {e}")
         existing = []
 
-    if existing and existing[0].get("score", 0) > (rt.config.get("merge_threshold") or 75):
+    should_merge = False
+    target_bucket = None
+
+    if existing:
         bucket = existing[0]
-        # --- 不合并到钉选/保护桶 ---
         if not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected")):
-            try:
-                if raw_merge:
-                    # --- 原文拼接合并（hold 路径）---
-                    old_text = bucket["content"].rstrip()
-                    new_text = content.strip()
-                    if new_text and new_text not in old_text:
-                        merged = f"{old_text}\n\n---\n{new_text}" if old_text else new_text
-                    else:
-                        merged = old_text or new_text
+            v_score = bucket.get("score", 0.0)
+            threshold = rt.config.get("merge_threshold") or 75
+            if v_score > threshold:
+                should_merge = True
+                target_bucket = bucket
+            elif v_score >= 65:
+                words_new = _extract_clean_keywords_no_digit(content)
+                words_old = _extract_clean_keywords_no_digit(bucket.get("content", "") or "")
+                if words_new and words_old:
+                    overlap_ratio = len(words_new & words_old) / min(len(words_new), len(words_old))
+                    # 阈值待观察调整
+                    if overlap_ratio >= 0.5:
+                        should_merge = True
+                        target_bucket = bucket
+                        rt.logger.info(
+                            f"jieba overlap boost merged: score={v_score:.2f} ratio={overlap_ratio:.2f}"
+                        )
+
+    if should_merge and target_bucket:
+        bucket = target_bucket
+        try:
+            if raw_merge:
+                # --- 原文拼接合并（hold 路径）---
+                old_text = bucket["content"].rstrip()
+                new_text = content.strip()
+                if new_text and new_text not in old_text:
+                    merged = f"{old_text}\n\n---\n{new_text}" if old_text else new_text
                 else:
-                    # --- LLM 压缩合并（grow 路径）---
-                    merged = await rt.dehydrator.merge(bucket["content"], content)
-                old_v = bucket["metadata"].get("valence") or 0.5
-                old_a = bucket["metadata"].get("arousal") or 0.3
-                merged_valence = round((old_v + valence) / 2, 2) if 0 <= valence <= 1 else old_v
-                merged_arousal = round((old_a + arousal) / 2, 2) if 0 <= arousal <= 1 else old_a
-                update_kwargs = dict(
-                    content=merged,
-                    tags=list(set((bucket["metadata"].get("tags") or []) + tags)),
-                    importance=max(bucket["metadata"].get("importance") or 5, importance),
-                    domain=list(set((bucket["metadata"].get("domain") or []) + domain)),
-                    valence=merged_valence,
-                    arousal=merged_arousal,
-                )
-                # iter 2.0：合并时记录「最后一次合并由谁触发」，不动原桶的 source_tool。
-                # 这样 dashboard 既能看到桶最初由谁创建，也能看到最近一次合并的来源。
-                if source_tool:
-                    update_kwargs["last_merged_by"] = source_tool
-                await rt.bucket_mgr.update(bucket["id"], **update_kwargs)
-                # --- 旧 content 的脱水缓存失效，让 breath 拿到合并后的新文本 ---
-                try:
-                    rt.dehydrator.invalidate_cache(bucket["content"])
-                except Exception:
-                    pass
-                # --- 合并后刷新 embedding（best-effort，合并路径不返回 embed 警告）---
-                try:
-                    await rt.embedding_engine.generate_and_store(bucket["id"], merged)
-                except Exception:
-                    pass
-                rt.logger.info(
-                    f"op=merge_or_create phase=branch branch=merge bucket_id={bucket['id']} "
-                    f"raw_merge={int(raw_merge)} source_tool={source_tool or '_'} "
-                    f"score={existing[0].get('score', 0):.3f}"
-                )
-                return bucket["id"], True, ""
-            except Exception as e:
-                rt.logger.warning(f"Merge failed, creating new / 合并失败，新建: {e}")
+                    merged = old_text or new_text
+            else:
+                # --- LLM 压缩合并（grow 路径）---
+                merged = await rt.dehydrator.merge(bucket["content"], content)
+            old_v = bucket["metadata"].get("valence") or 0.5
+            old_a = bucket["metadata"].get("arousal") or 0.3
+            merged_valence = round((old_v + valence) / 2, 2) if 0 <= valence <= 1 else old_v
+            merged_arousal = round((old_a + arousal) / 2, 2) if 0 <= arousal <= 1 else old_a
+            update_kwargs = dict(
+                content=merged,
+                tags=list(set((bucket["metadata"].get("tags") or []) + tags)),
+                importance=max(bucket["metadata"].get("importance") or 5, importance),
+                domain=list(set((bucket["metadata"].get("domain") or []) + domain)),
+                valence=merged_valence,
+                arousal=merged_arousal,
+            )
+            # iter 2.0：合并时记录「最后一次合并由谁触发」，不动原桶的 source_tool。
+            # 这样 dashboard 既能看到桶最初由谁创建，也能看到最近一次合并的来源。
+            if source_tool:
+                update_kwargs["last_merged_by"] = source_tool
+            await rt.bucket_mgr.update(bucket["id"], **update_kwargs)
+            # --- 旧 content 的脱水缓存失效，让 breath 拿到合并后的新文本 ---
+            try:
+                rt.dehydrator.invalidate_cache(bucket["content"])
+            except Exception:
+                pass
+            # --- 合并后刷新 embedding（best-effort，合并路径不返回 embed 警告）---
+            try:
+                await rt.embedding_engine.generate_and_store(bucket["id"], merged)
+            except Exception:
+                pass
+            rt.logger.info(
+                f"op=merge_or_create phase=branch branch=merge bucket_id={bucket['id']} "
+                f"raw_merge={int(raw_merge)} source_tool={source_tool or '_'} "
+                f"score={existing[0].get('score', 0):.3f}"
+            )
+            return bucket["id"], True, ""
+        except Exception as e:
+            rt.logger.warning(f"Merge failed, creating new / 合并失败，新建: {e}")
 
     bucket_id = await rt.bucket_mgr.create(
         content=content,
