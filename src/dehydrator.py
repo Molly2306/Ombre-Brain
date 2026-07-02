@@ -34,7 +34,7 @@ from typing import Optional
 
 from openai import AsyncOpenAI
 
-from utils import count_tokens_approx
+from utils import clean_llm_json, count_tokens_approx, positive_float
 
 logger = logging.getLogger("ombre_brain.dehydrator")
 
@@ -247,6 +247,7 @@ class Dehydrator:
         self.base_url = dehy_cfg.get("base_url", _DEFAULT_BASE_URL)
         self.max_tokens = dehy_cfg.get("max_tokens", _DEFAULT_MAX_TOKENS)
         self.temperature = dehy_cfg.get("temperature", _DEFAULT_TEMPERATURE)
+        self.timeout_seconds = positive_float(dehy_cfg.get("timeout_seconds"), _API_TIMEOUT_SECONDS)
         # api_format: "openai_compat" (default) | "gemini" | "anthropic"
         self.api_format = dehy_cfg.get("api_format", "openai_compat")
         # Auto-detect new Google AI Studio key format (AQ.*): these keys are not accepted
@@ -282,7 +283,7 @@ class Dehydrator:
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                timeout=_API_TIMEOUT_SECONDS,
+                timeout=self.timeout_seconds,
             )
 
         # --- SQLite dehydration cache ---
@@ -427,7 +428,7 @@ class Dehydrator:
         # 关闭/限制思考预算（见 __init__ 的 thinking_budget 说明）。
         if self.thinking_budget is not None:
             payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": self.thinking_budget}
-        async with httpx.AsyncClient(timeout=_API_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             r = await client.post(url, params={"key": self.api_key}, json=payload)
             r.raise_for_status()
         data = r.json()
@@ -463,7 +464,7 @@ class Dehydrator:
             "messages": [{"role": "user", "content": user}],
             "temperature": temperature if temperature is not None else self.temperature,
         }
-        async with httpx.AsyncClient(timeout=_API_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             r = await client.post(url, headers=headers, json=payload)
             r.raise_for_status()
         data = r.json()
@@ -475,16 +476,8 @@ class Dehydrator:
 
     @staticmethod
     def _strip_md_fence(raw: str) -> str:
-        """剥掉 LLM 偶尔会包的 ```...``` 代码块外壳。
-
-        DeepSeek / Gemini 在被要求"返回纯 JSON"时仍偶尔把 JSON 包进
-        ```json\n{...}\n``` 里。三处 JSON 解析都得做这层剥离，
-        所以统一抽到这里。原始字符串不含围栏时原样返回。
-        """
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
-        return cleaned
+        """Backwards-compatible wrapper for tolerant LLM JSON extraction."""
+        return clean_llm_json(raw)
 
     @staticmethod
     def _clamp_va(
@@ -513,10 +506,10 @@ class Dehydrator:
     async def dehydrate(self, content: str, metadata: Optional[dict] = None) -> str:
         """
         Dehydrate/compress memory content.
-        Returns formatted summary string ready for Claude context injection.
+        Returns formatted summary string ready for LLM context injection.
         Uses SQLite cache to avoid redundant API calls.
         对记忆内容做脱水压缩。
-        返回格式化的摘要字符串，可直接注入 Claude 上下文。
+        返回格式化的摘要字符串，可直接注入 LLM 上下文。
         使用 SQLite 缓存避免重复调用 API。
         """
         if not content or not content.strip():
