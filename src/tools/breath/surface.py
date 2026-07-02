@@ -60,6 +60,7 @@ async def surface_default(max_results: int, max_tokens: int, tag_filter: list) -
         b for b in all_buckets
         if (b["metadata"].get("pinned") or b["metadata"].get("protected"))
         and b["metadata"].get("type") != "letter"
+        and not b["metadata"].get("superseded_by")
     ]
     pinned_ids = {b["id"] for b in pinned_buckets}
     pinned_results = []
@@ -86,6 +87,7 @@ async def surface_default(max_results: int, max_tokens: int, tag_filter: list) -
         and not b["metadata"].get("pinned", False)
         and not b["metadata"].get("protected", False)
         and not b["metadata"].get("dont_surface", False)
+        and not b["metadata"].get("superseded_by")
         and _bucket_has_tags(b["metadata"], tag_filter)
     ]
 
@@ -270,6 +272,7 @@ async def surface_default(max_results: int, max_tokens: int, tag_filter: list) -
                 and b["id"] not in shown_ids
                 and b["metadata"].get("type") not in ("feel", "plan", "letter")
                 and not b["metadata"].get("pinned")
+                and not b["metadata"].get("superseded_by")
             ]
             if resolved_pool:
                 random.shuffle(resolved_pool)

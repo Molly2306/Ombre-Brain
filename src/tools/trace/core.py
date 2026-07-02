@@ -47,6 +47,7 @@ async def trace_core(
     weight: Optional[float] = -1,
     dont_surface: Optional[int] = -1,
     why_remembered: Optional[str] = "",
+    superseded_by: Optional[str] = "",
 ) -> str:
     if name is None: name = ""
     if domain is None: domain = ""
@@ -63,6 +64,7 @@ async def trace_core(
     if weight is None: weight = -1
     if dont_surface is None: dont_surface = -1
     if why_remembered is None: why_remembered = ""
+    if superseded_by is None: superseded_by = ""
     if rt.mark_op:
         rt.mark_op("trace")
 
@@ -128,6 +130,11 @@ async def trace_core(
         updates["why_remembered"] = ""
     elif why_remembered:
         updates["why_remembered"] = why_remembered[:500]
+    superseded_by = str(superseded_by).strip()
+    if superseded_by == "\\clear":
+        updates["superseded_by"] = ""
+    elif superseded_by:
+        updates["superseded_by"] = superseded_by
 
     if not updates:
         return "没有任何字段需要修改。"

@@ -108,6 +108,7 @@ async def surface_by_importance(importance_min: int, max_tokens: int, tag_filter
         if int(b.get("metadata", {}).get("importance") or 0) >= importance_min
         and b.get("metadata", {}).get("type") not in ("feel", "plan", "letter")
         and not b.get("metadata", {}).get("dont_surface", False)
+        and not b.get("metadata", {}).get("superseded_by")
         and _bucket_has_tags(b.get("metadata", {}), tag_filter)
     ]
     filtered = _select_importance_buckets(filtered, importance_min, limit=20)

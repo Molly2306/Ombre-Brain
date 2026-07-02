@@ -99,6 +99,7 @@ async def surface_search(
 
     matches = [b for b in matches if b["metadata"].get("type") not in ("feel", "plan", "letter")]
     matches = [b for b in matches if _bucket_has_tags(b["metadata"], tag_filter)]
+    matches = [b for b in matches if not b["metadata"].get("superseded_by")]
 
     # --- 向量通道 ---
     matched_ids = {b["id"] for b in matches}
@@ -110,6 +111,7 @@ async def surface_search(
                 if (
                     bucket
                     and bucket["metadata"].get("type") not in ("feel", "plan", "letter", "archived")
+                    and not bucket["metadata"].get("superseded_by")
                     and _bucket_has_tags(bucket["metadata"], tag_filter)
                 ):
                     score = sim_score * 100
@@ -203,6 +205,7 @@ async def surface_search(
                 b for b in all_buckets
                 if b["id"] not in matched_ids
                 and b["metadata"].get("type") not in ("feel", "plan", "letter")
+                and not b["metadata"].get("superseded_by")
                 and rt.decay_engine.calculate_score(b["metadata"]) < 2.0
             ]
             if low_weight:
