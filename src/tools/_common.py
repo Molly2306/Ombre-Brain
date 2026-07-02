@@ -682,3 +682,9 @@ async def cascade_plan_resolved_to_buckets(plan_meta: dict, plan_id: str) -> lis
 # 向后兼容：保留下划线别名（部分历史调用点用 _ 前缀）
 _check_duplicate_for = check_duplicate_for
 _check_plan_resolution = check_plan_resolution
+
+LOW_TIER_THRESHOLD = 40  # 模块级常量，非硬编码在函数内，方便后续观察期调整
+
+def is_low_tier(score: float, threshold: float = LOW_TIER_THRESHOLD) -> bool:
+    return score < threshold
+

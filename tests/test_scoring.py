@@ -16,8 +16,10 @@ import pytest_asyncio
 import math
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, AsyncMock
 
 from tests.dataset import DATASET
+
 
 
 # ============================================================
@@ -248,6 +250,40 @@ class TestSearchScoring:
             # The asyncio bucket should be in top results
             top_content = results[0].get("content", "")
             assert "asyncio" in top_content or "event loop" in top_content
+
+    def test_is_low_tier(self):
+        from tools._common import is_low_tier
+        assert is_low_tier(30.0) is True
+        assert is_low_tier(45.0) is False
+
+    @pytest.mark.asyncio
+    async def test_search_low_tier_filtering(self, test_config, bucket_mgr):
+        import tools._runtime as rt
+        from tools.breath.search import surface_search
+        
+        class FakeDehydrator:
+            async def dehydrate(self, content, meta=None):
+                return content
+        
+        rt.config = {"surfacing": {"breath_max_results": 20, "breath_max_tokens": 10000}}
+        rt.bucket_mgr = bucket_mgr
+        rt.dehydrator = FakeDehydrator()
+        rt.logger = MagicMock()
+        rt.embedding_engine = MagicMock()
+        rt.embedding_engine.enabled = False
+        rt.vector_fallback = None
+
+        # 模拟检索返回列表，测试不同分数的过滤效果
+        rt.bucket_mgr.search = AsyncMock(return_value=[
+            {"id": "high_id", "content": "High score content", "score": 80.0, "metadata": {"type": "dynamic"}},
+            {"id": "low_id", "content": "Low score content", "score": 30.0, "metadata": {"type": "dynamic"}}
+        ])
+        
+        res = await surface_search(query="test", max_results=5, max_tokens=1000, domain="", valence=-1, arousal=-1, tag_filter=[])
+        assert "high_id" in res
+        assert "low_id" not in res
+
+
 
     @pytest.mark.asyncio
     async def test_domain_filter_works(self, populated_env):

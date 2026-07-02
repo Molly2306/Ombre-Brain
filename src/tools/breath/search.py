@@ -28,8 +28,9 @@ import time
 import logging
 
 from .. import _runtime as rt
-from .._common import _extract_keywords_simple
+from .._common import _extract_keywords_simple, is_low_tier
 from utils import strip_wikilinks, count_tokens_approx
+
 
 # ============================================================
 # 调参面板 / Tunable constants
@@ -136,8 +137,11 @@ async def surface_search(
     for bucket in matches:
         if token_used >= max_tokens:
             break
+        if "score" in bucket and is_low_tier(bucket["score"]):
+            continue
         try:
             clean_meta = {k: v for k, v in bucket["metadata"].items() if k != "tags"}
+
             meta_b = bucket["metadata"]
             is_core = meta_b.get("pinned") or meta_b.get("protected") or meta_b.get("type") == "permanent"
             # --- 记忆重构：根据当前情绪微调展示层 valence（±0.1）---
